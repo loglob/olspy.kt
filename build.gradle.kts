@@ -2,6 +2,7 @@ val ktor_version : String by project
 
 plugins {
     kotlin("jvm") version "2.1.20"
+    kotlin("plugin.serialization") version "2.1.20"
 
     // Apply the java-library plugin for API and implementation separation.
     `java-library`
@@ -21,7 +22,13 @@ dependencies {
 
     // KTOR client dependencies
     implementation("io.ktor:ktor-client-core:${ktor_version}")
-    implementation("io.ktor:ktor-client-cio:${ktor_version}")
+    implementation ("io.ktor:ktor-client-cio:${ktor_version}")
+    implementation ("io.ktor:ktor-client-websockets:${ktor_version}")
+    implementation("io.ktor:ktor-client-content-negotiation:${ktor_version}")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:${ktor_version}")
+
+    implementation("io.ktor:ktor-client-logging:${ktor_version}")
+    implementation("ch.qos.logback:logback-classic:1.3.15")
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

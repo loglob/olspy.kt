@@ -4,3 +4,4 @@
 /gradlew*
 /.kotlin/
 /.idea/
+/**/test-data.txt

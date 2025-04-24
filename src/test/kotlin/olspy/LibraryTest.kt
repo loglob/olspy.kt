@@ -3,10 +3,27 @@
  */
 package olspy
 
+import io.ktor.client.engine.ProxyConfig
+import io.ktor.http.Url
+import jdk.internal.org.jline.utils.ExecHelper.exec
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Disabled
+import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class LibraryTest {
+    val data = File("src/test/resources/test-data.txt")
+        .readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && it[0] != '#' }
+        .associate {
+            val xs = it.split("=", limit = 2)
+            xs[0].trimEnd() to xs[1].trimStart()
+        }
+
     @Test fun someLibraryMethodReturnsTrue() {
         val classUnderTest = Library()
         assertTrue(classUnderTest.someLibraryMethod(), "someLibraryMethod should return 'true'")
@@ -15,6 +32,19 @@ class LibraryTest {
     @Test
     fun runHTTP() {
         val l = Library()
-        println(l.httpRequestTemplate())
+        println(l.httpRequestTemplate(Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888))))
+    }
+
+    @Test
+    fun openProject() = runBlocking {
+        val conf = ProjectConfig( proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888)))
+        val proj = Project.open(Url(data["share link"]!!), conf)
+        println(proj.id)
+    }
+
+    @Test
+    fun printTestData()
+    {
+        println(data)
     }
 }
