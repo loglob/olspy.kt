@@ -11,4 +11,10 @@ class LibraryTest {
         val classUnderTest = Library()
         assertTrue(classUnderTest.someLibraryMethod(), "someLibraryMethod should return 'true'")
     }
+
+    @Test
+    fun runHTTP() {
+        val l = Library()
+        println(l.httpRequestTemplate())
+    }
 }

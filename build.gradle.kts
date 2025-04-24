@@ -1,3 +1,5 @@
+val ktor_version : String by project
+
 plugins {
     kotlin("jvm") version "2.1.20"
 
@@ -16,6 +18,10 @@ dependencies {
     // Use the JUnit 5 integration.
     testImplementation(libs.junit.jupiter.engine)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // KTOR client dependencies
+    implementation("io.ktor:ktor-client-core:${ktor_version}")
+    implementation("io.ktor:ktor-client-cio:${ktor_version}")
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
