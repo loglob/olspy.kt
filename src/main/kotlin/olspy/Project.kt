@@ -3,9 +3,8 @@ package olspy
 import io.ktor.client.*
 import io.ktor.client.call.body
 import io.ktor.client.engine.ProxyConfig
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.DefaultRequest
-import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.plugins.defaultRequest
@@ -40,12 +39,8 @@ private val CSRF_HEADER = "X-CSRF-TOKEN"
 private val List<Cookie>.sessionToken : String?
 	get() = (get("overleaf.sid") ?: get("sharelatex.sid"))?.value
 
-/** Checks that a URL is normal HTTP(S) */
-private val Url.isValidScheme
-	get() = protocol == URLProtocol.HTTP || protocol == URLProtocol.HTTPS
-
 /** initializes the HTTP client for communicating with overleaf */
-private fun initClient(baseUri : Url, conf : ProjectConfig)
+private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientConfig<CIOEngineConfig>.() -> Unit = {})
 	= HttpClient(CIO) {
 		engine {
 			proxy = conf.proxy
@@ -78,16 +73,49 @@ private fun initClient(baseUri : Url, conf : ProjectConfig)
 			}
 		}
 
-		expectSuccess = true
+		expectSuccess = false
+
+		extra()
 	}
 
 /** HTTP configuration underlying the connection to Overleaf */
 class ProjectConfig(val timeout : Duration? = 15.seconds, val proxy : ProxyConfig? = null, val debug : Boolean = false)
 
-/** Support class for encoding requests to share link grant pages */
+/** Support class for POST data to grant endpoints */
 @Suppress("PropertyName")
 @Serializable
 private data class GrantData(val _csrf : String, val confirmedByUser : Boolean = false)
+
+/** Support class for POST data for login endpoints */
+@Suppress("PropertyName")
+@Serializable
+private data class LoginData(val _csrf : String, val email : String, val password : String)
+
+private suspend fun HttpResponse.getCSRF() : String
+	= CSRF_TAG.find(bodyAsText())?.groupValues?.get(1)
+		?: throw HttpContentException("Response did not include a CSRF token")
+
+private suspend fun HttpClient.postJson(url : Url, data : Any) : HttpResponse
+	= post(url) {
+		contentType(ContentType.Application.Json)
+		setBody(data)
+	}
+private suspend fun HttpClient.postJson(path : String, data: Any) : HttpResponse
+	// NOTE: postJson(Url(path)) has COMPLETELY different semantics
+	= post(path) {
+		contentType(ContentType.Application.Json)
+		setBody(data)
+	}
+
+/** Ensures a URL has the correct format for Overleaf links */
+private fun checkURL(url : Url)
+{
+	require(url.protocol == URLProtocol.HTTP || url.protocol == URLProtocol.HTTPS) {
+		"illegal protocol: ${url.protocol}"
+	}
+	require(url.isAbsolutePath) { "Overleaf URL must be absolute" }
+	require(url.parameters.isEmpty()) { "Overleaf URL must not have query parameters" }
+}
 
 /** An overleaf project */
 class Project private constructor(val id : String, private val client : HttpClient)
@@ -98,18 +126,11 @@ class Project private constructor(val id : String, private val client : HttpClie
 		 * @param conf The HTTP configuration to use
 		 * @throws IllegalArgumentException If the link is malformed
 		 * @throws HttpContentException When the server's responses weren't formatted as expected
+		 * @throws HttpStatusException When the server responds with a failed status code
 		 * */
 		suspend fun open(shareLink : Url, conf : ProjectConfig = ProjectConfig()) : Project
 		{
-			require(shareLink.isValidScheme) {
-				"Illegal URL protocol: ${shareLink.protocol}"
-			}
-			require(shareLink.parameters.isEmpty()) {
-				"Share link must not have query or fragment"
-			}
-			require(shareLink.isAbsolutePath) {
-				"Share link must be absolute"
-			}
+			checkURL(shareLink)
 
 			// number of segments that aren't part of the base URL
 			val omit = when(shareLink.rawSegments) {
@@ -123,36 +144,57 @@ class Project private constructor(val id : String, private val client : HttpClie
 				}.build()
 
 			val client = initClient(baseUri, conf)
-
-			val loginResp = client.get(shareLink)
+			val loginResp = client.get(shareLink).throwUnlessSuccess()
 
 			if(client.cookies(shareLink).sessionToken === null)
 				throw HttpContentException("Did not receive a session cookie from share link")
 			val csrf = CSRF_TAG.find(loginResp.bodyAsText())?.groupValues?.get(1)
 					?: throw HttpContentException("Did not receive a CSRF tag from the share link")
 
-			// FIXME: I'm pretty sure this gets completely ignored
-			client.config {
-				headers {
-					append(CSRF_HEADER, csrf)
-				}
-			}
-
 			val grantUrl = URLBuilder(shareLink).apply {
 				pathSegments = pathSegments.plus("grant")
 			}.build()
-			val grantResp : Map<String,String> = client.post(grantUrl) {
-				contentType(ContentType.Application.Json)
-				setBody(GrantData(csrf))
-			}.body()
+			val grantResp : Map<String,String> = client.postJson(grantUrl, GrantData(csrf))
+				.throwUnlessSuccess().body()
 
 			val redir = grantResp["redirect"] ?: throw HttpContentException("Join grant did not contain a project redirect URL")
-			val vv = Regex("/project/([0-9a-fA-F]+)$").find(redir)
+			val id = Regex("/project/([0-9a-fA-F]+)$").find(redir)
 
-			if(vv === null)
+			if(id === null)
 				throw HttpContentException("Project redirect URL from join grant was not in the expected format")
 
-			return Project(vv.groupValues[1], client)
+			return Project(id.groupValues[1], client)
+		}
+
+		/** Opens a project with a user's login credentials
+		 * @param host The base URL of the overleaf server
+		 * @param id The project ID
+		 * @param email The user's email
+		 * @param password The user's password
+		 * @param conf The HTTP configuration to use
+		 *
+		 * @throws IllegalArgumentException If the host URL or project id are malformed
+		 * @throws HttpContentException When the server's responses weren't formatted as expected
+		 * @throws HttpStatusException When the server responds with a failed status code
+		 */
+		suspend fun open(host : Url, id : String, email : String, password : String, conf : ProjectConfig = ProjectConfig()) : Project
+		{
+			checkURL(host)
+			require( Regex("^[0-9a-fA-F]+$").matches(id)) { "Invalid project ID" }
+
+			val client = initClient(host, conf)
+
+			val csrf = client.get("login")
+				.throwUnlessSuccess("Failed to GET login page (is the host url correct?)")
+				.getCSRF()
+
+			client.postJson("login", LoginData(csrf, email, password))
+				.throwUnlessSuccess("Failed to log in (are the credentials correct?)")
+
+			if(client.cookies(host).sessionToken === null)
+				throw HttpContentException("Did not receive a session cookie after login")
+
+			return Project(id, client)
 		}
 	}
 }

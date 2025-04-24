@@ -1,2 +1,8 @@
 # sensitive data for unit testing
 share link = <A PLAIN SHARE LINK>
+
+base url = <BASE URL TO OVERLEAF INSTANCE>
+project id = <PROJECT ID TO TRY AND OPEN>
+
+email = <A VALID USER EMAIL>
+password = <THAT USER'S PASSWORD>

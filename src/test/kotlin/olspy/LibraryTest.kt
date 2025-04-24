@@ -24,6 +24,9 @@ class LibraryTest {
             xs[0].trimEnd() to xs[1].trimStart()
         }
 
+    val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888))
+    val conf = ProjectConfig(proxy = proxy, debug = false)
+
     @Test fun someLibraryMethodReturnsTrue() {
         val classUnderTest = Library()
         assertTrue(classUnderTest.someLibraryMethod(), "someLibraryMethod should return 'true'")
@@ -32,14 +35,28 @@ class LibraryTest {
     @Test
     fun runHTTP() {
         val l = Library()
-        println(l.httpRequestTemplate(Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888))))
+        println(l.httpRequestTemplate(proxy))
     }
 
     @Test
     fun openProject() = runBlocking {
-        val conf = ProjectConfig( proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888)))
         val proj = Project.open(Url(data["share link"]!!), conf)
-        println(proj.id)
+
+        require(proj.id == data["project id"]!!)
+
+    }
+
+    @Test
+    fun openProjectToken() = runBlocking {
+        val proj = Project.open(
+            Url(data["base url"]!!),
+            data["project id"]!!,
+            data["email"]!!,
+            data["password"]!!,
+            conf
+        )
+
+        require(proj.id == data["project id"]!!)
     }
 
     @Test
