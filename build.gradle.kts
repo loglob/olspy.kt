@@ -29,6 +29,8 @@ dependencies {
 
     implementation("io.ktor:ktor-client-logging:${ktor_version}")
     implementation("ch.qos.logback:logback-classic:1.3.15")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

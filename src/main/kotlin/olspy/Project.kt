@@ -9,12 +9,17 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.*
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
+import olspy.protocol.CompileData
+import olspy.protocol.CompileInfo
+import olspy.protocol.GrantData
+import olspy.protocol.LoginData
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -32,21 +37,23 @@ private val READ_WRITE_LINK : Pat.List<String>
 private val CSRF_TAG : Regex
 	= Regex("<meta +name=\"ol-csrfToken\" *content=\"([^\"]+)\" *>")
 
-/** HTTP header set on all requests after the initial */
-private val CSRF_HEADER = "X-CSRF-TOKEN"
-
 /** Accesses the cookie that contains the overleaf session ID */
 private val List<Cookie>.sessionToken : String?
 	get() = (get("overleaf.sid") ?: get("sharelatex.sid"))?.value
 
 /** initializes the HTTP client for communicating with overleaf */
-private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientConfig<CIOEngineConfig>.() -> Unit = {})
-	= HttpClient(CIO) {
+private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientConfig<CIOEngineConfig>.() -> Unit = {}) : HttpClient
+{
+	// this MUST be declared here because the config lambda gets captured and otherwise all cookies would get deleted by re-configuring
+	val cookies = AcceptAllCookiesStorage()
+	return HttpClient(CIO) {
 		engine {
 			proxy = conf.proxy
 		}
 
-		install(HttpCookies)
+		install(HttpCookies) {
+			storage = cookies
+		}
 		install(DefaultRequest)
 
 		if(conf.debug)
@@ -67,6 +74,8 @@ private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientCo
 			json()
 		}
 
+
+
 		defaultRequest {
 			url {
 				takeFrom(baseUri)
@@ -77,19 +86,10 @@ private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientCo
 
 		extra()
 	}
+}
 
 /** HTTP configuration underlying the connection to Overleaf */
 class ProjectConfig(val timeout : Duration? = 15.seconds, val proxy : ProxyConfig? = null, val debug : Boolean = false)
-
-/** Support class for POST data to grant endpoints */
-@Suppress("PropertyName")
-@Serializable
-private data class GrantData(val _csrf : String, val confirmedByUser : Boolean = false)
-
-/** Support class for POST data for login endpoints */
-@Suppress("PropertyName")
-@Serializable
-private data class LoginData(val _csrf : String, val email : String, val password : String)
 
 private suspend fun HttpResponse.getCSRF() : String
 	= CSRF_TAG.find(bodyAsText())?.groupValues?.get(1)
@@ -117,7 +117,16 @@ private fun checkURL(url : Url)
 	require(url.parameters.isEmpty()) { "Overleaf URL must not have query parameters" }
 }
 
-/** An overleaf project */
+private fun HttpClient.plusCSRF(csrf : String) : HttpClient
+	= config {
+		defaultRequest {
+			header("X-CSRF-TOKEN", csrf)
+		}
+	}
+
+/** An overleaf project
+ * @param id The unique ID of this project
+ * */
 class Project private constructor(val id : String, private val client : HttpClient)
 {
 	companion object {
@@ -148,7 +157,7 @@ class Project private constructor(val id : String, private val client : HttpClie
 
 			if(client.cookies(shareLink).sessionToken === null)
 				throw HttpContentException("Did not receive a session cookie from share link")
-			val csrf = CSRF_TAG.find(loginResp.bodyAsText())?.groupValues?.get(1)
+			val csrf =  CSRF_TAG.find(loginResp.bodyAsText())?.groupValues?.get(1)
 					?: throw HttpContentException("Did not receive a CSRF tag from the share link")
 
 			val grantUrl = URLBuilder(shareLink).apply {
@@ -163,7 +172,7 @@ class Project private constructor(val id : String, private val client : HttpClie
 			if(id === null)
 				throw HttpContentException("Project redirect URL from join grant was not in the expected format")
 
-			return Project(id.groupValues[1], client)
+			return Project(id.groupValues[1], client.plusCSRF(csrf))
 		}
 
 		/** Opens a project with a user's login credentials
@@ -194,7 +203,24 @@ class Project private constructor(val id : String, private val client : HttpClie
 			if(client.cookies(host).sessionToken === null)
 				throw HttpContentException("Did not receive a session cookie after login")
 
-			return Project(id, client)
+			return Project(id, client.plusCSRF(csrf))
 		}
+	}
+
+	/** Requests a compilation
+	 * @param rootDoc A file ID to use as main document
+	 * @param draft Whether to run a draft (faster,lower quality) compile
+	 * @param check Overleaf always sets this so "silent" (?)
+	 * @param incremental Whether to run an incremental compile
+	 * @param stopOnFirstError Whether to stop on error or continue compiling
+	 * */
+	suspend fun compile(rootDoc : String? = null, draft : Boolean = false, check : String = "silent",
+	                    incremental : Boolean = true, stopOnFirstError : Boolean = true) : CompileInfo
+	{
+		val result = client.postJson("project/$id/compile", CompileData(
+			rootDoc, draft, check, incremental, stopOnFirstError
+		)).throwUnlessSuccess("Failed to compile project")
+
+		return result.body()
 	}
 }

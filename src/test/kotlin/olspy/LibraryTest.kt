@@ -3,15 +3,13 @@
  */
 package olspy
 
-import io.ktor.client.engine.ProxyConfig
-import io.ktor.http.Url
-import jdk.internal.org.jline.utils.ExecHelper.exec
+import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Disabled
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Proxy
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class LibraryTest {
@@ -57,6 +55,15 @@ class LibraryTest {
         )
 
         require(proj.id == data["project id"]!!)
+    }
+
+    @Test
+    fun testCompile() = runBlocking {
+        val proj = Project.open(Url(data["share link"]!!), conf)
+        val res = proj.compile()
+        println(res)
+        assertTrue(res.isSuccessful)
+        assertEquals("output.pdf", res.pdf?.path)
     }
 
     @Test
