@@ -9,17 +9,18 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.*
-import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.Serializable
+import kotlinx.datetime.Clock
 import olspy.protocol.CompileData
 import olspy.protocol.CompileInfo
 import olspy.protocol.GrantData
 import olspy.protocol.LoginData
+import olspy.support.Pat
+import olspy.support.postJson
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -68,7 +69,7 @@ private fun initClient(baseUri : Url, conf : ProjectConfig, extra : HttpClientCo
 			requestTimeoutMillis = conf.timeout?.inWholeMilliseconds
 		}
 		install(WebSockets) {
-			pingInterval = conf.timeout
+			pingInterval = 3.seconds
 		}
 		install(ContentNegotiation) {
 			json()
@@ -95,17 +96,6 @@ private suspend fun HttpResponse.getCSRF() : String
 	= CSRF_TAG.find(bodyAsText())?.groupValues?.get(1)
 		?: throw HttpContentException("Response did not include a CSRF token")
 
-private suspend fun HttpClient.postJson(url : Url, data : Any) : HttpResponse
-	= post(url) {
-		contentType(ContentType.Application.Json)
-		setBody(data)
-	}
-private suspend fun HttpClient.postJson(path : String, data: Any) : HttpResponse
-	// NOTE: postJson(Url(path)) has COMPLETELY different semantics
-	= post(path) {
-		contentType(ContentType.Application.Json)
-		setBody(data)
-	}
 
 /** Ensures a URL has the correct format for Overleaf links */
 private fun checkURL(url : Url)
@@ -127,7 +117,7 @@ private fun HttpClient.plusCSRF(csrf : String) : HttpClient
 /** An overleaf project
  * @param id The unique ID of this project
  * */
-class Project private constructor(val id : String, private val client : HttpClient)
+class Project private constructor(val id : String, internal val client : HttpClient)
 {
 	companion object {
 		/** Opens an overleaf project via a share link
@@ -222,5 +212,22 @@ class Project private constructor(val id : String, private val client : HttpClie
 		)).throwUnlessSuccess("Failed to compile project")
 
 		return result.body()
+	}
+
+	/** Initializes a websocket instance for this project */
+	suspend fun join() : ProjectSession
+	{
+		val t = Clock.System.now().toEpochMilliseconds()
+		val key = client.get("socket.io/1/?projectId=$id&t=$t")
+			.throwUnlessSuccess()
+			.bodyAsText()
+			.split(':')[0]
+
+		return ProjectSession.start(this, key)
+	}
+
+	suspend fun getDocumentByID(docID : String) : Array<String>
+	{
+		TODO()
 	}
 }

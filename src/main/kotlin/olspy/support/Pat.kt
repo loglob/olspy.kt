@@ -1,4 +1,4 @@
-package olspy
+package olspy.support
 
 /** Alias to avoid confusion with Pat.List */
 private typealias L<T> = List<T>
@@ -7,7 +7,8 @@ private typealias L<T> = List<T>
 sealed class MultiPat<T>
 
 /** Support class wrapper for a pattern matching operation */
-sealed class Pat<T> : MultiPat<T>() {
+sealed class Pat<T> : MultiPat<T>()
+{
 	/** Whether this pattern matches a value
 	 *  operator to be used with `when(...){ in ... }`
 	 */
