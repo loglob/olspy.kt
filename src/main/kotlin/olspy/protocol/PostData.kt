@@ -14,4 +14,4 @@ data class LoginData(val _csrf : String, val email : String, val password : Stri
 
 @Serializable
 data class CompileData(val rootDoc_id : String?, val draft : Boolean, val check : String,
-                       val incrementalCompilesEnables : Boolean, val stopOnFirstError : Boolean)
+                       val incrementalCompilesEnabled : Boolean, val stopOnFirstError : Boolean)

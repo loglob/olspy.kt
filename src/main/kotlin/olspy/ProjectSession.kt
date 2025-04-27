@@ -2,12 +2,9 @@ package olspy
 
 import io.ktor.client.plugins.websocket.*
 import io.ktor.websocket.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import olspy.protocol.*
 import olspy.protocol.Opcode.*
@@ -16,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.coroutineContext
 
-
+/** A websocket session for an overleaf project */
 class ProjectSession private constructor(val project: Project)
 {
 	/** async thread that moves data between `receiveMap`, `sendQueue` and the socket */

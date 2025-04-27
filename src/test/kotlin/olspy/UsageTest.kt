@@ -3,9 +3,14 @@
  */
 package olspy
 
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import olspy.protocol.CompileStatus
 import java.io.File
+import java.net.Proxy
 import kotlin.test.*
 
 class UsageTest {
@@ -18,8 +23,11 @@ class UsageTest {
             xs[0].trimEnd() to xs[1].trimStart()
         }
 
-    val proxy = null // Proxy(Proxy.Type.HTTP, InetSocketAddress("localhost", 8888))
+    val proxy = Proxy(Proxy.Type.HTTP, java.net.InetSocketAddress("localhost", 8888))
     val conf = ProjectConfig(proxy = proxy, debug = false)
+
+    fun outputFile(name : String)
+        = if(File("test-output").isDirectory) File("test-output/$name") else null
 
     @Test
     fun openProject() = runBlocking {
@@ -43,12 +51,17 @@ class UsageTest {
     }
 
     @Test
-    fun testCompile() = runBlocking {
+    fun testCompile() : Unit = runBlocking {
         val proj = Project.open(Url(data["share link"]!!), conf)
-        val res = proj.compile()
-        println(res)
-        assertTrue(res.isSuccessful)
-        assertEquals("output.pdf", res.pdf?.path)
+        val build = proj.compile()
+        println(build)
+        assertTrue(build.isSuccessful)
+        val pdf = build.pdf
+        assertEquals("output.pdf", pdf?.path)
+
+        outputFile("success.pdf")?.writeBytes(proj.getOutFile(pdf!!).bodyAsBytes())
+
+        assertEquals(listOf(), proj.readLogs(build).toList())
     }
 
     @Test
@@ -59,19 +72,73 @@ class UsageTest {
 
     @Test
     fun documentGet() = runBlocking {
-        println("OPENING PROJECT....")
         val proj = Project.open(Url(data["share link"]!!), conf)
-        println("JOINING....")
         val sess = proj.join()
-        println("AWAITING INFO....")
         val args = sess.getProjectInfo()
 
         println(args)
-        println("RETRIEVING DOCUMENT....")
         val lines = sess.getDocument(args.project.rootDocID)
         println(lines)
 
         sess.close()
-        println("CLOSED OK")
     }
+
+    @Test
+    fun getHistory() = runBlocking {
+        val proj = Project.open(Url(data["rw share link"]!!), conf)
+        val updates = proj.getUpdateHistory()
+
+        var lastFrom = -1
+
+        for(u in updates)
+        {
+            assertTrue(u.fromV >= 0, "invalid from index: ${u.fromV}")
+            assertTrue(u.toV > u.fromV, "anticausal update")
+
+            if(lastFrom > 0)
+                assertEquals(lastFrom, u.toV, "Gap in project versions")
+
+            lastFrom = u.fromV
+        }
+
+        assertEquals(0, lastFrom)
+
+        for(update in updates)
+        {
+            println(update)
+            println()
+        }
+    }
+
+
+
+    @Test
+    fun fatalError() : Unit = runBlocking {
+        val proj = Project.open(Url(data["share link"]!!), conf)
+        println("JOIN OK")
+        val sess = proj.join()
+
+        val info = sess.getProjectInfo()
+        println("INFO OK")
+
+        async {
+            // FIXME: close sometimes very slow?
+            sess.close()
+            println("CLOSE OK")
+        }
+
+        val (_,file) = info.project.rootFolder.flatMap { it.ls() }.first { (_,f) -> f.name == "fatal-error.tex" }
+
+        val build = proj.compile(file.id, incremental = true, stopOnFirstError = false)
+
+        println(build)
+        assertFalse(build.isSuccessful)
+        assertEquals(CompileStatus.FAILURE, build.status)
+
+        val logs = proj.readLogs(build).toList()
+        println(logs)
+        assertNotEquals(listOf(), logs)
+    }
+
+    // FIXME: recoverable errors don't produce PDF
 }

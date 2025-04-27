@@ -174,6 +174,9 @@ data class JoinProjectArgs(
 	val protocolVersion : Int
 )
 
+/** Undoes the content encoding overleaf performs
+ * They do (in JS) `unescape(encodeUriComponent(x))`, so this corresponds to `decodeUriComponent(escape(x))`
+ */
 fun unMangle(mangled : String) : String
 	= StringBuilder().apply {
 		for(c in mangled)

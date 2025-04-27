@@ -62,7 +62,7 @@ enum class CompileStatus
 }
 
 @Serializable
-class OutputFile(
+data class OutputFile(
 	val path : String,
 	/** A complete URL for this file */
 	val url : String,
@@ -71,7 +71,7 @@ class OutputFile(
 	/** The unique build ID that produced this file */
 	val build : String,
 	/** Always empty (?), only present on PDF files */
-	val ranges : Array<Int>? = null,
+	val ranges : List<Int>? = null,
 	/** The number of bytes, only present on PDF files */
 	val size : Int? = null,
 	/** A timestamp only present on PDF files */
