@@ -4,13 +4,14 @@
 package olspy
 
 import io.ktor.http.*
+import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import java.io.File
-import java.net.InetSocketAddress
-import java.net.Proxy
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import java.nio.ByteBuffer
+import kotlin.test.*
 
 class LibraryTest {
     val data = File("src/test/resources/test-data.txt")
@@ -70,5 +71,44 @@ class LibraryTest {
     fun printTestData()
     {
         println(data)
+    }
+
+    @Test
+    fun stringDecodeTest()
+    {
+        val str = "big sneeder"
+        val blob = ByteBuffer.wrap(str.toByteArray(Charsets.UTF_8))
+        blob.getInt()
+        println(blob.decodeString(Charsets.UTF_8))
+    }
+
+    @Serializable
+    data class Foobar(val foo : String, val bar : JsonArray)
+
+    @Test
+    fun parseJsonTest()
+    {
+        println(Json.decodeFromString<Foobar>("{ \"foo\" : \"aaaaa\", \"bar\" : [ 42, \"aaa\" ] }"))
+//        println(Json.decodeFromString<Foobar>("{ \"foo\" : \"aaaaa\" }"))
+ //       println(Json.decodeFromString<Foobar>("{  }"))
+//        println(Json.decodeFromString<Foobar>("{ \"foo\" : \"aaaaa\", \"bar\" : \"sneed\" }"))
+    }
+
+    @Test
+    fun documentGet() = runBlocking {
+        println("OPENING PROJECT....")
+        val proj = Project.open(Url(data["share link"]!!), conf)
+        println("JOINING....")
+        val sess = proj.join()
+        println("AWAITING INFO....")
+        val args = sess.getProjectInfo()
+
+        println(args)
+        println("RETRIEVING DOCUMENT....")
+        val lines = sess.getDocument(args.project.rootDocID)
+        println(lines)
+
+        sess.close()
+        println("CLOSED OK")
     }
 }

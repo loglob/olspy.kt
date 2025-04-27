@@ -8,6 +8,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import olspy.BinaryFormatException
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.nio.ByteBuffer
 
 private fun Iterable<Byte>.fmt(truncated : Boolean = false) : String = StringBuilder().run {
@@ -56,7 +58,12 @@ fun ByteBuffer.getAsciiIf(pred : (x : Char) -> Boolean) : Char?
 {
 	val p = peekAscii()
 
-	return if(p !== null && pred(p)) p else null
+	return if(p !== null && pred(p)) {
+		getAscii()
+		p
+	}
+	else
+		null
 }
 
 fun ByteBuffer.getAscii(r : CharRange)
@@ -104,3 +111,6 @@ fun<R> ByteBuffer.delta(body : ByteBuffer.() -> R) : Pair<Boolean, R>
 	val r = body()
 	return Pair(position() != p0, r)
 }
+
+fun ByteBuffer.toStream() : InputStream
+	= ByteArrayInputStream(array(), position(), remaining())

@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 val ktor_version : String by project
 
 plugins {
@@ -43,4 +45,10 @@ java {
 tasks.named<Test>("test") {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
+}
+
+val compileKotlin : KotlinCompile by tasks
+
+compileKotlin.compilerOptions {
+    freeCompilerArgs.set(listOf("-Xwhen-guards"))
 }

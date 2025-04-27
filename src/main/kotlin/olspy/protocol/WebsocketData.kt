@@ -175,7 +175,7 @@ data class JoinProjectArgs(
 )
 
 fun unMangle(mangled : String) : String
-	= StringBuilder().run {
+	= StringBuilder().apply {
 		for(c in mangled)
 		{
 			when(c)
