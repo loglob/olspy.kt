@@ -2,8 +2,6 @@ jdk:
   - openjdk21
 
 before_install:
-  - sdk install java 21.0.7-open
-  - sdk use java 21.0.7-open
   - sdk install gradle 8.13
   - sdk use gradle 8.13
-  
+  - gradle wrapper --gradle-version 8.13
