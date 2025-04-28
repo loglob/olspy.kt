@@ -1,4 +1,4 @@
-package olspy.protocol.http
+package olspy.protocol
 
 import kotlinx.datetime.Instant
 import kotlinx.serialization.*

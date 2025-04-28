@@ -12,30 +12,7 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 
-private fun Iterable<Byte>.fmt(truncated : Boolean = false) : String = StringBuilder().run {
-	var n = 0
-	for(c in this@fmt)
-	{
-		append("%02x".format(c))
-
-		if(++n % 4 == 0)
-			append(' ')
-	}
-
-	if(truncated)
-		append("…")
-
-	append(" (")
-
-	for(c in this@fmt)
-		append(if(c in 32..126) c else '·')
-
-
-	if(truncated)
-		append("…")
-	append(")")
-}.toString()
-
+/** Sends JSON formatted data to an HTTP endpoint */
 suspend fun HttpClient.postJson(url : Url, data : Any) : HttpResponse
 		= post(url) {
 	contentType(ContentType.Application.Json)
@@ -48,17 +25,24 @@ suspend fun HttpClient.postJson(path : String, data: Any) : HttpResponse
 	setBody(data)
 }
 
+/** converts byte to char */
 private fun ord(x : Byte) = (x.toInt() and 0xFF).toChar()
 
+/** Inspects the next byte to be returned by get() without updating position */
 fun ByteBuffer.peek() = if(position() < capacity()) get(position()) else null
 
+/** Gets the next byte and converts it to ASCII char */
 fun ByteBuffer.getAscii() = ord(get())
+/** @returns the next value to be returned by `getAscii()` without updating state */
 fun ByteBuffer.peekAscii() = peek()?.let(::ord)
-fun ByteBuffer.getAsciiIf(pred : (x : Char) -> Boolean) : Char?
+/** Looks at the next byte and consumes it iff the `pred` is true
+ * @returns The consumed character, if the predicate matched
+ */
+inline fun ByteBuffer.getAsciiIf(crossinline predicate : (x : Char) -> Boolean) : Char?
 {
 	val p = peekAscii()
 
-	return if(p !== null && pred(p)) {
+	return if(p !== null && predicate(p)) {
 		getAscii()
 		p
 	}
@@ -66,13 +50,21 @@ fun ByteBuffer.getAsciiIf(pred : (x : Char) -> Boolean) : Char?
 		null
 }
 
+/** Looks at the next byte, consumes it, and asserts that it is inside a range
+ * @throws BinaryFormatException If the byte isn't in the range
+ */
 fun ByteBuffer.getAscii(r : CharRange)
 	= getAscii().also { if(it !in r) throw BinaryFormatException("Invalid byte format") }
-fun ByteBuffer.getAscii(pred : (x : Char) -> Boolean)
-	= getAscii().also { if(!pred(it)) throw BinaryFormatException("Invalid byte format") }
+
+/** Looks at the next byte, consumes it, and asserts that it is equal to the given char
+ * @throws BinaryFormatException If the byte has another value
+ */
 fun ByteBuffer.getAscii(ch : Char)
 	= getAscii(ch .. ch)
 
+/** Reads a positive decimal formatted number from the buffer
+ * @returns null if no digits were present
+ * */
 fun ByteBuffer.getDecimal() : Int?
 {
 	var x = 0
@@ -92,6 +84,7 @@ fun ByteBuffer.getDecimal() : Int?
 	return if(any) x else null
 }
 
+/** Creates an aliasing sub-buffer of the longest prefix under the given predicate */
 fun ByteBuffer.span(pred : (x : Char) -> Boolean) : ByteBuffer
 {
 	val p0 = position()
@@ -104,13 +97,3 @@ fun ByteBuffer.span(pred : (x : Char) -> Boolean) : ByteBuffer
 
 	return ByteBuffer.wrap(array(), p0, position() - p0)
 }
-
-fun<R> ByteBuffer.delta(body : ByteBuffer.() -> R) : Pair<Boolean, R>
-{
-	val p0 = position()
-	val r = body()
-	return Pair(position() != p0, r)
-}
-
-fun ByteBuffer.toStream() : InputStream
-	= ByteArrayInputStream(array(), position(), remaining())

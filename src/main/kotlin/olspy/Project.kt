@@ -18,8 +18,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.datetime.Clock
 import olspy.protocol.*
-import olspy.protocol.http.Update
-import olspy.protocol.http.WrappedUpdates
+import olspy.protocol.CompileInfo
+import olspy.protocol.OutputFile
+import olspy.protocol.Update
+import olspy.protocol.WrappedUpdates
 import olspy.support.Pat
 import olspy.support.postJson
 import kotlin.time.Duration
@@ -108,6 +110,7 @@ private fun checkURL(url : Url)
 	require(url.parameters.isEmpty()) { "Overleaf URL must not have query parameters" }
 }
 
+/** Creates an updated http client with a CSRF header */
 private fun HttpClient.plusCSRF(csrf : String) : HttpClient
 	= config {
 		defaultRequest {
@@ -292,7 +295,6 @@ class Project private constructor(val id : String, internal val client : HttpCli
 				}
 			}
 		}
-
 
 	}
 }

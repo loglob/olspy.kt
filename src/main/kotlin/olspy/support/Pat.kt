@@ -43,9 +43,6 @@ sealed class Pat<T> : MultiPat<T>()
 		constructor() : this(Any())
 	}
 
-	/** Shorthand for many */
-	fun Many(exp : kotlin.text.Regex) = Many(Regex(exp))
-
 	/** A pattern matches against a list
 	 * @param pieces Patterns for individual elements, with AT MOST one Many() pattern
 	 * */
@@ -101,4 +98,3 @@ sealed class Pat<T> : MultiPat<T>()
 	}
 }
 
-fun Pat(exp : Regex) : Pat<String> = Pat.Regex(exp)

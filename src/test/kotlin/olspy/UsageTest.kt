@@ -34,7 +34,6 @@ class UsageTest {
         val proj = Project.open(Url(data["share link"]!!), conf)
 
         require(proj.id == data["project id"]!!)
-
     }
 
     @Test

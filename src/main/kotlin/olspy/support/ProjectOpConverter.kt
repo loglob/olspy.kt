@@ -6,10 +6,10 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import olspy.HttpContentException
-import olspy.protocol.http.AddFile
-import olspy.protocol.http.ProjectOp
-import olspy.protocol.http.RemoveFile
-import olspy.protocol.http.RenameFile
+import olspy.protocol.AddFile
+import olspy.protocol.ProjectOp
+import olspy.protocol.RemoveFile
+import olspy.protocol.RenameFile
 
 @Serializable
 private data class Arg(
@@ -28,6 +28,7 @@ private data class Surrogate(
 	val rename : RenameArg? = null
 )
 
+/** Serializer for ProjectOp that needs to decide subclass based on which fields are present */
 class ProjectOpConverter() : KSerializer<ProjectOp>
 {
 	override val descriptor : SerialDescriptor = SerialDescriptor("olspy.support.ProjectOp", Surrogate.serializer().descriptor)

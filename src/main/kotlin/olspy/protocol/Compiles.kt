@@ -4,7 +4,7 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** THe success state of a `compile()` request */
+/** The success state of a `compile()` request */
 @Serializable
 enum class CompileStatus
 {

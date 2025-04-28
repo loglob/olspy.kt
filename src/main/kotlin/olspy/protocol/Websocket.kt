@@ -1,6 +1,5 @@
 package olspy.protocol
 
-import io.ktor.http.Url
 import io.ktor.util.decodeString
 import kotlinx.datetime.Instant
 import olspy.BinaryFormatException
@@ -8,11 +7,7 @@ import olspy.support.*
 import java.nio.ByteBuffer
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
-import olspy.HttpContentException
-import java.io.ByteArrayInputStream
-import java.net.URI
 import java.net.URLDecoder
-import java.net.URLEncoder
 
 val RPC_JOIN_PROJECT = "joinProjectResponse"
 val RPC_JOIN_DOCUMENT = "joinDoc"
