@@ -40,8 +40,8 @@ data class FileRef(
 	@SerialName("_id")
 	override val id : String,
 	override val name : String,
-	val linkedFileData : LinkedFile?,
-	val created : Instant
+	val created : Instant,
+	val linkedFileData : LinkedFile? = null
 ) : FileInfo()
 
 @Serializable
