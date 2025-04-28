@@ -169,6 +169,9 @@ class Project private constructor(val id : String, internal val client : HttpCli
 			return Project(id.groupValues[1], client.plusCSRF(csrf))
 		}
 
+		suspend fun open(shareLink : String, conf : ProjectConfig = ProjectConfig()) : Project
+			= open(Url(shareLink), conf)
+
 		/** Opens a project with a user's login credentials
 		 * @param host The base URL of the overleaf server
 		 * @param id The project ID
@@ -199,6 +202,9 @@ class Project private constructor(val id : String, internal val client : HttpCli
 
 			return Project(id, client.plusCSRF(csrf))
 		}
+
+		suspend fun open(host : String, id : String, email : String, password : String, conf : ProjectConfig = ProjectConfig()) : Project
+			= open(Url(host), id, email, password, conf)
 	}
 
 	/** Requests a compilation
